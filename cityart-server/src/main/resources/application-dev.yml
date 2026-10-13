@@ -3,7 +3,7 @@ cityart:
     driver-class-name: com.mysql.cj.jdbc.Driver
     host: localhost
     port: 3306
-    database: cityart
+    database: city_art
     username: root
     password: 123456
 
