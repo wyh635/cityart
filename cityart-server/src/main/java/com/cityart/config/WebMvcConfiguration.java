@@ -1,5 +1,6 @@
 package com.cityart.config;
 
+import com.cityart.interceptor.JwtTokenAdminInterceptor;
 import com.cityart.interceptor.JwtTokenUserInterceptor;
 import com.cityart.json.JacksonObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +31,9 @@ public class WebMvcConfiguration extends WebMvcConfigurationSupport {
     @Autowired
     private JwtTokenUserInterceptor jwtTokenUserInterceptor;
 
+    @Autowired
+    private JwtTokenAdminInterceptor jwtTokenAdminInterceptor;
+
     /**
      * 注册自定义拦截器
      * <p>
@@ -57,12 +61,28 @@ public class WebMvcConfiguration extends WebMvcConfigurationSupport {
                         "/api/app/dict/exhibition-types",
                         "/api/app/dict/gallery-types",
                         "/api/app/dict/cities",
-                        // 「展览详情 / 美术馆详情」模块用**路径参数**，白名单必须写成 /*
-                        // （写具体数字会失效，id 是变的）
-                        "/api/app/exhibitions/*",
+                        // 「展览作品集 / 馆内展览列表」是纯查询，游客可看，直接放行
                         "/api/app/exhibitions/*/works",
-                        "/api/app/galleries/*",
-                        "/api/app/galleries/*/exhibitions"
+                        "/api/app/galleries/*/exhibitions",
+                        // ⚠️ 注意：/api/app/galleries/* 和 /api/app/exhibitions/* 已从这里移除。
+                        //    详情接口要返回「当前用户是否已收藏」，必须过拦截器才能拿到 userId，
+                        //    所以改用 @OptionalLogin 注解（无 token 按游客放行，有 token 解析出 userId），
+                        //    写在 ExhibitionController#detail 和 GalleryController#detail 上。
+                        // 票务模块里只有这三个是免登录的（票种、观展日历、支付回调）
+                        // ⚠️ 订单 / 票夹 / 看展记录 / 收藏 / 个人中心一律不放行，必须带 token
+                        "/api/app/exhibitions/*/ticket-types",
+                        "/api/app/exhibitions/*/calendar",
+                        "/api/app/orders/pay-notify"
+                );
+
+        // ==================== B 端管理员拦截器 ====================
+        // 与 C 端是两套独立体系：不同路径、不同密钥、不同 claims 键、不同 ThreadLocal
+        // C 端 token 拿到这里验不过（密钥不同）→ 401
+        registry.addInterceptor(jwtTokenAdminInterceptor)
+                .addPathPatterns("/api/admin/**")
+                .excludePathPatterns(
+                        // 登录发生在拿到 token 之前，必须放行
+                        "/api/admin/login"
                 );
     }
 

@@ -1,12 +1,19 @@
 package com.cityart.mapper;
 
+import com.cityart.dto.AdminGalleryPageQueryDTO;
 import com.cityart.dto.GalleryPageQueryDTO;
+import com.cityart.vo.AdminGalleryDetailVO;
+import com.cityart.vo.AdminGalleryVO;
 import com.cityart.vo.GalleryDetailVO;
 import com.cityart.vo.GalleryPageVO;
 import com.cityart.vo.GalleryVO;
+import org.apache.ibatis.annotations.Delete;
+import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 import java.util.List;
 
@@ -54,4 +61,109 @@ public interface GalleryMapper {
             "type, exhibition_count, is_hot " +
             "from gallery where id = #{id} and status = 0")
     GalleryDetailVO getGalleryById(@Param("id") Long id);
+
+    /**
+     * 重算并回写某美术馆的「当前在展数量」
+     * <p>
+     * exhibition_count 是冗余字段（首页卡片直接读，避免 COUNT 子查询），
+     * 新增 / 删除 / 编辑展览后必须调本方法同步，否则首页数字会一直是旧的。
+     * <p>
+     * 口径：该馆名下「今天在展期内」的展览数
+     */
+    @Update("update gallery g set g.exhibition_count = (" +
+            "  select count(*) from exhibition e " +
+            "  where e.gallery_id = g.id " +
+            "    and e.start_date <= curdate() and e.end_date >= curdate()" +
+            ") where g.id = #{id}")
+    int syncExhibitionCount(@Param("id") Long id);
+
+    /**
+     * 校准所有美术馆的在展数量（全表重算，只更新对不上的行）
+     * <p>
+     * 用于定时校准：展览自然到期（日期过了）时没有人主动同步，
+     * 该馆的 exhibition_count 会一直停在旧值
+     *
+     * @return 实际被修正的行数
+     */
+    @Update("update gallery g set g.exhibition_count = (" +
+            "  select count(*) from exhibition e " +
+            "  where e.gallery_id = g.id " +
+            "    and e.start_date <= curdate() and e.end_date >= curdate()" +
+            ") where g.exhibition_count <> (" +
+            "  select count(*) from exhibition e " +
+            "  where e.gallery_id = g.id " +
+            "    and e.start_date <= curdate() and e.end_date >= curdate()" +
+            ")")
+    int repairAllExhibitionCount();
+
+    // ==================================================================
+    // 以下是后台「展馆管理」用的方法
+    // ==================================================================
+
+    /**
+     * 后台展馆列表：总条数（条件与列表共用同一段 XML SQL）
+     */
+    long countAdminGalleryPage(@Param("dto") AdminGalleryPageQueryDTO dto);
+
+    /**
+     * 后台展馆列表：当前页数据
+     */
+    List<AdminGalleryVO> listAdminGalleryPage(@Param("dto") AdminGalleryPageQueryDTO dto);
+
+    /**
+     * 后台展馆详情（编辑回填，**不带 status=0 条件**：闭馆维护的馆也要能编辑）
+     */
+    @Select("select id, gallery_code, name, city, address, open_hour, close_hour, closed_day, " +
+            "       open_time, cover_image, intro, type, exhibition_count, is_hot, status " +
+            "from gallery where id = #{id}")
+    AdminGalleryDetailVO getAdminGalleryById(@Param("id") Long id);
+
+    /**
+     * 新增展馆
+     * <p>
+     * open_time 由 Service 拼好后传进来（closedDay + openHour-closeHour）
+     */
+    @Insert("insert into gallery(gallery_code, name, city, address, open_hour, close_hour, closed_day, " +
+            "  open_time, cover_image, intro, type, is_hot, status, exhibition_count, create_time) " +
+            "values(#{galleryCode}, #{name}, #{city}, #{address}, #{openHour}, #{closeHour}, #{closedDay}, " +
+            "  #{openTime}, #{coverImage}, #{intro}, #{type}, #{isHot}, #{status}, 0, now())")
+    @Options(useGeneratedKeys = true, keyProperty = "id")
+    int insertGallery(AdminGalleryDetailVO vo);
+
+    /**
+     * 编辑展馆（不含编号：编号生成后不可改）
+     */
+    @Update("update gallery set name = #{name}, city = #{city}, address = #{address}, " +
+            "  open_hour = #{openHour}, close_hour = #{closeHour}, closed_day = #{closedDay}, " +
+            "  open_time = #{openTime}, cover_image = #{coverImage}, intro = #{intro}, " +
+            "  type = #{type}, is_hot = #{isHot}, status = #{status} " +
+            "where id = #{id}")
+    int updateGallery(AdminGalleryDetailVO vo);
+
+    /**
+     * 删除展馆
+     */
+    @Delete("delete from gallery where id = #{id}")
+    int deleteGallery(@Param("id") Long id);
+
+    /**
+     * 该展馆名下的展览数量（删除前的校验之一）
+     */
+    @Select("select count(*) from exhibition where gallery_id = #{id}")
+    int countExhibitionsByGalleryId(@Param("id") Long id);
+
+    /**
+     * 该展馆名下的订单数量（删除前的校验之一）
+     * <p>
+     * 订单是财务数据，只要有过订单就不允许删展馆，否则订单里的场馆信息会悬空
+     */
+    @Select("select count(*) from exhibition_order where gallery_id = #{id}")
+    int countOrdersByGalleryId(@Param("id") Long id);
+
+    /**
+     * 某城市已有展馆编号的最大序号，用于生成展馆编号（如南京 → NJ-G007）
+     */
+    @Select("select max(cast(substring(gallery_code, 6) as unsigned)) " +
+            "from gallery where city = #{city} and gallery_code is not null")
+    Integer getMaxGalleryCodeSeqOfCity(@Param("city") String city);
 }

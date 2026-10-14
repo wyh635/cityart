@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  订单 Mapper（只放 JOIN / 动态条件的查询，插入与条件更新在 ExhibitionOrderMapper 接口的注解里）
+  namespace 必须是接口全限定名
+-->
+<mapper namespace="com.cityart.mapper.ExhibitionOrderMapper">
+
+    <!-- 订单详情：订单 + 展览 + 美术馆 一次查全（避免循环查库） -->
+    <select id="getOrderDetail" resultType="com.cityart.vo.OrderDetailVO">
+        select o.order_no,
+               o.status,
+               o.create_time,
+               o.pay_expire_time,
+               o.total_amount,
+               o.ticket_name,
+               o.price,
+               o.quantity,
+               o.visit_date,
+               o.qr_code,
+               o.expire_time,
+               o.use_time,
+               o.contact_name,
+               o.contact_phone,
+               e.id         as exhibition_id,
+               e.title      as exhibition_title,
+               e.poster_image,
+               e.start_date as exhibition_start_date,
+               e.end_date   as exhibition_end_date,
+               g.name       as gallery_name,
+               g.address    as gallery_address
+        from exhibition_order o
+        join exhibition e on e.id = o.exhibition_id
+        join gallery g on g.id = o.gallery_id
+        <!-- 带上 user_id：防止用户拿别人的订单号查到别人的订单 -->
+        where o.order_no = #{orderNo} and o.user_id = #{userId}
+    </select>
+
+    <!-- 我的订单的查询条件（count / list 共用，保证分页页码一致） -->
+    <sql id="orderPageWhere">
+        <where>
+            o.user_id = #{userId}
+            <if test="dto.status != null">
+                and o.status = #{dto.status}
+            </if>
+        </where>
+    </sql>
+
+    <!-- 我的订单：总条数 -->
+    <select id="countOrderPage" resultType="long">
+        select count(*)
+        from exhibition_order o
+        <include refid="orderPageWhere"/>
+    </select>
+
+    <!-- 我的订单：当前页数据 -->
+    <select id="listOrderPage" resultType="com.cityart.vo.OrderPageItemVO">
+        select o.order_no,
+               o.status,
+               o.ticket_name,
+               o.quantity,
+               o.price,
+               o.total_amount,
+               o.visit_date,
+               o.create_time,
+               o.pay_expire_time,
+               o.use_time,
+               o.refund_status,
+               e.title      as exhibition_title,
+               e.poster_image,
+               e.end_date   as exhibition_end_date,
+               g.name       as gallery_name
+        from exhibition_order o
+        join exhibition e on e.id = o.exhibition_id
+        join gallery g on g.id = o.gallery_id
+        <include refid="orderPageWhere"/>
+        order by o.create_time desc, o.id desc
+        limit #{dto.offset}, #{dto.limit}
+    </select>
+
+    <!-- 票夹：数据源是已支付订单（status = 2），一单一码 -->
+    <select id="listTickets" resultType="com.cityart.vo.TicketVO">
+        select o.order_no,
+               o.visit_date,
+               o.ticket_name,
+               o.quantity,
+               o.qr_code,
+               o.expire_time,
+               o.status,
+               e.title      as exhibition_title,
+               e.poster_image,
+               g.name       as gallery_name
+        from exhibition_order o
+        join exhibition e on e.id = o.exhibition_id
+        join gallery g on g.id = o.gallery_id
+        where o.user_id = #{userId} and o.status = 2
+        order by o.visit_date desc, o.id desc
+        limit #{dto.offset}, #{dto.limit}
+    </select>
+
+    <!-- 看展记录：数据源是已核销订单（use_time 不为空），可按月筛选 -->
+    <sql id="recordWhere">
+        <where>
+            o.user_id = #{userId}
+            and o.use_time is not null
+            <if test="dto.month != null and dto.month != ''">
+                and date_format(o.use_time, '%Y-%m') = #{dto.month}
+            </if>
+        </where>
+    </sql>
+
+    <select id="countRecords" resultType="long">
+        select count(*)
+        from exhibition_order o
+        <include refid="recordWhere"/>
+    </select>
+
+    <select id="listRecords" resultType="com.cityart.vo.RecordVO">
+        select o.order_no,
+               date_format(o.use_time, '%Y-%m') as month_group,
+               o.use_time,
+               o.ticket_name,
+               o.quantity,
+               e.title      as exhibition_title,
+               e.poster_image,
+               g.name       as gallery_name
+        from exhibition_order o
+        join exhibition e on e.id = o.exhibition_id
+        join gallery g on g.id = o.gallery_id
+        <include refid="recordWhere"/>
+        order by o.use_time desc, o.id desc
+        limit #{dto.offset}, #{dto.limit}
+    </select>
+
+    <!-- ===================================================================
+         B 端「核销记录」
+         数据源就是订单表（一单一码，use_time 不为空即一条核销记录），
+         不需要单独的核销记录表
+         =================================================================== -->
+    <sql id="verifyRecordWhere">
+        <where>
+            o.use_time is not null
+            <if test="dto.city != null and dto.city != ''">
+                and g.city = #{dto.city}
+            </if>
+            <if test="dto.type != null">
+                and e.type = #{dto.type}
+            </if>
+            <if test="dto.verifyType != null">
+                and o.verify_type = #{dto.verifyType}
+            </if>
+            <if test="dto.keyword != null and dto.keyword != ''">
+                and (o.order_no like concat('%', #{dto.keyword}, '%')
+                     or e.title like concat('%', #{dto.keyword}, '%')
+                     or o.contact_name like concat('%', #{dto.keyword}, '%'))
+            </if>
+            <if test="dto.startDate != null">
+                and o.use_time &gt;= #{dto.startDate}
+            </if>
+            <if test="dto.endDate != null">
+                and o.use_time &lt; date_add(#{dto.endDate}, interval 1 day)
+            </if>
+        </where>
+    </sql>
+
+    <select id="countVerifyRecords" resultType="long">
+        select count(*)
+        from exhibition_order o
+        join exhibition e on e.id = o.exhibition_id
+        join gallery g on g.id = o.gallery_id
+        <include refid="verifyRecordWhere"/>
+    </select>
+
+    <select id="listVerifyRecords" resultType="com.cityart.vo.VerifyRecordVO">
+        select o.id,
+               o.use_time,
+               o.order_no,
+               o.contact_name,
+               o.quantity,
+               o.verify_type,
+               e.title as exhibition_title,
+               a.name  as verify_admin_name
+        from exhibition_order o
+        join exhibition e on e.id = o.exhibition_id
+        join gallery g on g.id = o.gallery_id
+        <!-- 用 left join：老数据没有 verify_admin_id，用 inner join 会整行查不出来 -->
+        left join admin a on a.id = o.verify_admin_id
+        <include refid="verifyRecordWhere"/>
+        order by o.use_time desc, o.id desc
+        limit #{dto.offset}, #{dto.limit}
+    </select>
+
+</mapper>

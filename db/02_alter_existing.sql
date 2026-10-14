@@ -63,6 +63,17 @@ CALL sp_add_column_if_absent('banner', 'update_time',
 
 
 -- =============================================================================
+-- 1.1 user：补 city（所在城市）、gender（性别）
+--     用于「编辑个人资料」页：昵称 / 性别 / 所在城市 / 手机号
+-- =============================================================================
+CALL sp_add_column_if_absent('user', 'city',
+                             'VARCHAR(50) DEFAULT NULL COMMENT ''用户所在城市，如：南京''');
+
+CALL sp_add_column_if_absent('user', 'gender',
+                             'TINYINT NOT NULL DEFAULT 0 COMMENT ''性别：0-未知 1-男 2-女''');
+
+
+-- =============================================================================
 -- 2. gallery：本设计不需要 district、phone；确保 open_time、is_hot、type 存在
 --    （若已按旧文档建过，open_time / type 会已存在，这里会跳过）
 -- =============================================================================
@@ -158,6 +169,8 @@ DROP PROCEDURE IF EXISTS `sp_drop_column_if_exists`;
 -- 6. 校验
 -- =============================================================================
 -- 本设计下的目标结构：
+--   user       : id, phone, password, nickname, avatar, visit_count, city, gender,
+--                status, create_time, update_time
 --   banner     : id, image_url, title, sort, create_time, update_time
 --   gallery    : id, name, cover_image, address, city, intro, open_time,
 --                exhibition_count, is_hot, status, type, create_time, update_time
@@ -167,5 +180,8 @@ DROP PROCEDURE IF EXISTS `sp_drop_column_if_exists`;
 --   exhibition_work : id, exhibition_id, name, author, image, description,
 --                     sort, create_time, update_time
 --
+-- 票务与个人中心的 4 张新表（ticket_type / exhibition_calendar /
+-- exhibition_order / favorite）在 05_order_favorite_tables.sql 中创建。
+--
 -- 执行后请核对：
---   DESC banner;  DESC gallery;  DESC exhibition;  DESC exhibition_work;
+--   DESC user;  DESC banner;  DESC gallery;  DESC exhibition;  DESC exhibition_work;

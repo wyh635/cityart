@@ -10,6 +10,8 @@
 | 02 | [02首页模块接口文档.md](02首页模块接口文档.md) | 首页 | 4 | 全部 🔓 |
 | 03 | [03全部展览与美术馆列表接口文档.md](03全部展览与美术馆列表接口文档.md) | 全部展览、美术馆 | 5 | 全部 🔓 |
 | 04 | [04详情页接口文档.md](04详情页接口文档.md) | 展览详情、美术馆详情 | 4 | 全部 🔓 |
+| 05 | [05票务与个人中心接口文档.md](05票务与个人中心接口文档.md) | 购票、支付、我的订单、票夹、看展记录、收藏、个人中心 | 18 | 多为 🔒 |
+| 06 | [06后台管理接口文档.md](06后台管理接口文档.md) | **B 端**：数据看板、展览/展馆管理、票务数据、扫码核销、个人中心 | 28 | 除登录外全 🔒 |
 
 ## 统一规范速查
 
@@ -90,12 +92,19 @@
 /api/app/dict/gallery-types
 /api/app/dict/cities
 
-# 详情页（4 个，注意用通配符 * 而不是具体数字）
-/api/app/exhibitions/*
+# 详情页里「纯查询」的 2 个（作品集、馆内展览列表）
 /api/app/exhibitions/*/works
-/api/app/galleries/*
 /api/app/galleries/*/exhibitions
+
+# 票务模块中免登录的 3 个（票种、日历、支付回调）
+/api/app/exhibitions/*/ticket-types
+/api/app/exhibitions/*/calendar
+/api/app/orders/pay-notify
 ```
+
+> ⚠️ **两个详情接口（`/api/app/exhibitions/{id}`、`/api/app/galleries/{id}`）不要写进本清单** ——
+> 它们是**可选登录**（方法上标 `@OptionalLogin`）：游客可看，带 token 时额外返回真实 `isFavorited`。
+> 一旦加进白名单就会绕过拦截器，`userId` 恒为 `null`，收藏状态永远是 `false`。
 
 > 新增免登录接口时，**必须同步更新这份清单和 `WebMvcConfiguration`**。
 
@@ -144,15 +153,58 @@
 | 3 | `/api/app/galleries/{id}` | GET | 🔓 | `gallery` + `exhibition` |
 | 4 | `/api/app/galleries/{id}/exhibitions` | GET | 🔓 | `exhibition` |
 
+### 05 票务与个人中心
+
+| 编号 | Path | Method | 认证 | 数据来源 |
+|---|---|---|---|---|
+| 1 | `/api/app/exhibitions/{id}/ticket-types` | GET | 🔓 | `ticket_type` |
+| 2 | `/api/app/exhibitions/{id}/calendar` | GET | 🔓 | `exhibition_calendar` |
+| 3 | `/api/app/orders` | POST | 🔒 | 两维库存 + `exhibition_order` |
+| 4 | `/api/app/orders/{orderNo}` | GET | 🔒 | `exhibition_order` |
+| 5 | `/api/app/orders/{orderNo}/pay` | POST | 🔒 | 支付平台 |
+| 6 | `/api/app/orders/pay-notify` | POST | 🔓 | 支付回调 |
+| 7 | `/api/app/orders/{orderNo}/pay-result` | GET | 🔒 | `exhibition_order` |
+| 8 | `/api/app/orders/{orderNo}/cancel` | PUT | 🔒 | 订单 + 库存回滚 |
+| 9 | `/api/app/orders/{orderNo}/refund` | POST | 🔒 | 订单 + 库存回滚 |
+| 10 | `/api/app/orders/page` | GET | 🔒 | `exhibition_order` |
+| 11 | `/api/app/tickets/page` | GET | 🔒 | `exhibition_order` |
+| 12 | `/api/app/records/page` | GET | 🔒 | `exhibition_order` |
+| 13 | `/api/app/favorites/page` | GET | 🔒 | `favorite` |
+| 14 | `/api/app/favorites` | POST | 🔒 | `favorite` |
+| 15 | `/api/app/favorites` | DELETE | 🔒 | `favorite` |
+| 16 | `/api/app/favorites/check` | GET | 🔒 | `favorite` |
+| 17 | `/api/app/personal/center` | GET | 🔒 | `user` + `favorite` + `exhibition_order` |
+| 18 | `/api/app/profile` | PUT | 🔒 | `user`（对 01 文档的扩展） |
+
+### 06 后台管理（B 端）
+
+> 全部在 `/api/admin/**` 下（与 C 端 `/api/app/**` 区分），**除登录外都要 token**，且需要**另一个 B 端拦截器**用 `admin-secret-key` 验签。
+
+| 编号 | Path | Method | 认证 | 数据来源 |
+|---|---|---|---|---|
+| 1 | `/api/admin/dashboard/overview` | GET | 🔒 | `exhibition_order` 聚合 |
+| 2 | `/api/admin/dashboard/exhibition-rank` | GET | 🔒 | 订单 + 展览 |
+| 3~6 | `/api/admin/dict/**` | GET | 🔒 | `city` / 枚举 / `gallery` |
+| 7~13 | `/api/admin/exhibitions/**` | GET/POST/PUT/DELETE | 🔒 | 展览 + 票种 + 日历 |
+| 14~18 | `/api/admin/galleries/**` | GET/POST/PUT/DELETE | 🔒 | `gallery` |
+| 19~20 | `/api/admin/orders/**` | GET/PUT | 🔒 | 订单 + 库存回滚 |
+| 21~23 | `/api/admin/stats/tickets**` | GET | 🔒 | 订单聚合 / POI 导出 |
+| 24 | `/api/admin/orders/verify` | POST | 🔒 | 核销 |
+| 25 | `/api/admin/verify-records/page` | GET | 🔒 | 订单 JOIN |
+| 26~27 | `/api/admin/profile` | GET/PUT | 🔒 | `admin` |
+| 28 | `/api/admin/upload` | POST | 🔒 | 文件系统 / OSS |
+
 ## 待补充的模块
 
 | 模块 | 状态 |
 |---|---|
-| 票务 / 下单 / 票夹 | 待写（对应表已 drop，需重新设计；详情页「购票」按钮目前只占位） |
-| 个人中心 / 收藏 / 看展记录 | 待写（对应表已 drop，需重新设计；详情页「收藏」按钮目前只占位） |
+| B 端登录拦截器 | 代码待写（`JwtTokenAdminInterceptor`，用 `admin-secret-key` 验签） |
+| 后台前端路由 | 待定 |
+
+> 详情页的「购票」和「收藏」按钮，此前标记为**占位**；现在对应表和接口文档均已就绪，可按 `05票务与个人中心接口文档.md` 实现。
 
 ## 相关目录
 
 | 目录 | 内容 |
 |---|---|
-| [db/](../db/README.md) | 数据库设计：4 张表的建表 SQL + 每张表的结构说明 |
+| [db/](../db/README.md) | 数据库设计：8 张业务表 + `07_admin_tables.sql`（后台新增 `city` / `notification` 及字段扩展）+ 每张表的结构说明 |

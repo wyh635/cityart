@@ -1,12 +1,15 @@
 package com.cityart.service.impl;
 
+import com.cityart.constant.FavoriteTargetTypeConstant;
 import com.cityart.constant.MessageConstant;
+import com.cityart.context.BaseContext;
 import com.cityart.dto.ExhibitionPageQueryDTO;
 import com.cityart.dto.ExhibitionWorkPageQueryDTO;
 import com.cityart.enumeration.ExhibitionTypeEnum;
 import com.cityart.exception.BaseException;
 import com.cityart.mapper.ExhibitionMapper;
 import com.cityart.mapper.ExhibitionWorkMapper;
+import com.cityart.mapper.FavoriteMapper;
 import com.cityart.result.PageResult;
 import com.cityart.service.ExhibitionService;
 import com.cityart.utils.ExhibitionStatusUtil;
@@ -32,6 +35,9 @@ public class ExhibitionServiceImpl implements ExhibitionService {
 
     @Autowired
     private ExhibitionWorkMapper exhibitionWorkMapper;
+
+    @Autowired
+    private FavoriteMapper favoriteMapper;
 
     @Override
     public PageResult<ExhibitionPageVO> pageQuery(ExhibitionPageQueryDTO dto) {
@@ -77,12 +83,13 @@ public class ExhibitionServiceImpl implements ExhibitionService {
             vo.setPrice(BigDecimal.ZERO);
         }
 
-        // 4. 两个占位字段：
+        // 4. 两个「非表字段」：
         //    · galleryPhone —— gallery 表暂时没有电话字段，恒为 null
-        //    · isFavorited  —— 收藏功能（收藏表）还没开发，恒为 false；
-        //                      以后接了收藏功能，这里改成用 BaseContext.getCurrentId() 去查
+        //    · isFavorited  —— 详情接口是「可选登录」：带 token 查真实收藏状态，游客为 false
         vo.setGalleryPhone(null);
-        vo.setIsFavorited(false);
+        Long userId = BaseContext.getCurrentId();
+        vo.setIsFavorited(userId != null
+                && favoriteMapper.countByUserAndTarget(userId, FavoriteTargetTypeConstant.EXHIBITION, id) > 0);
 
         // 5. 作品集总数：前端用它决定「作品集」区块要不要显示（>0 才去调作品集接口）
         vo.setWorksCount((int) exhibitionWorkMapper.countByExhibitionId(id));

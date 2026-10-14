@@ -187,4 +187,105 @@
         limit #{dto.offset}, #{dto.limit}
     </select>
 
+    <!-- ===================================================================
+         后台「展览管理」列表
+         ⚠️ 注意：这里**不筛**展出状态（后台要看全部，含往期）
+         stockStatus（有票/已售完）也不在这里筛，因为它依赖日历库存，
+         由 Service 对结果集过滤
+         =================================================================== -->
+    <sql id="adminExhibitionWhere">
+        <where>
+            <if test="dto.city != null and dto.city != ''">
+                and g.city = #{dto.city}
+            </if>
+            <if test="dto.type != null">
+                and e.type = #{dto.type}
+            </if>
+            <if test="dto.keyword != null and dto.keyword != ''">
+                and (e.title like concat('%', #{dto.keyword}, '%')
+                     or e.exhibition_code like concat('%', #{dto.keyword}, '%'))
+            </if>
+        </where>
+    </sql>
+
+    <select id="countAdminExhibitionPage" resultType="long">
+        select count(*)
+        from exhibition e
+        join gallery g on g.id = e.gallery_id
+        <include refid="adminExhibitionWhere"/>
+    </select>
+
+    <select id="listAdminExhibitionPage" resultType="com.cityart.vo.AdminExhibitionVO">
+        select e.id,
+               e.exhibition_code,
+               e.title,
+               e.start_date,
+               e.end_date,
+               e.type,
+               e.price,
+               e.daily_stock_limit,
+               e.status,
+               e.is_hot,
+               g.id   as gallery_id,
+               g.name as gallery_name,
+               g.city
+        from exhibition e
+        join gallery g on g.id = e.gallery_id
+        <include refid="adminExhibitionWhere"/>
+        <!-- 末尾 id asc 兜底：create_time 可能同秒重复，否则翻页会重复/漏数据 -->
+        order by e.create_time desc, e.id desc
+        limit #{dto.offset}, #{dto.limit}
+    </select>
+
+    <!-- 后台展览详情（编辑回填） -->
+    <select id="getAdminExhibitionById" resultType="com.cityart.vo.AdminExhibitionDetailVO">
+        select e.id,
+               e.exhibition_code,
+               e.title,
+               e.start_date,
+               e.end_date,
+               e.type,
+               e.open_time,
+               e.daily_stock_limit,
+               e.poster_image,
+               e.images,
+               e.description,
+               e.is_hot,
+               e.sort_order,
+               e.status,
+               g.id   as gallery_id,
+               g.name as gallery_name
+        from exhibition e
+        join gallery g on g.id = e.gallery_id
+        where e.id = #{id}
+    </select>
+
+    <!-- ===================================================================
+         批量取各展览「最近放票日」的剩余库存（后台列表的「当日库存」列）
+         先取 min(calendar_date >= today) 得到每个展览的最近放票日，
+         再 JOIN 回日历表把该日各票种的剩余加起来
+         ⚠️ 必须批量，逐条查会造成 N+1
+         =================================================================== -->
+    <select id="listNearestDailyStock" resultType="com.cityart.vo.AdminExhibitionVO">
+        <!-- ⚠️ 别名必须是 id（不是 exhibition_id）：
+             VO 的属性叫 id，靠 map-underscore-to-camel-case 映射，
+             写成 exhibition_id 会填不进 id，Service 里按 getId() 取值就全是 null → 全被判成「已售完」 -->
+        select c.exhibition_id            as id,
+               sum(c.total_stock - c.sold_count) as daily_stock
+        from exhibition_calendar c
+        join (
+            select exhibition_id, min(calendar_date) as nearest_date
+            from exhibition_calendar
+            where calendar_date &gt;= curdate()
+              and exhibition_id in
+              <foreach collection="ids" item="id" open="(" separator="," close=")">
+                  #{id}
+              </foreach>
+            group by exhibition_id
+        ) n
+          on n.exhibition_id = c.exhibition_id
+         and n.nearest_date = c.calendar_date
+        group by c.exhibition_id
+    </select>
+
 </mapper>

@@ -4,3 +4,6 @@
 *.class
 *Test.java
 **/test/
+
+# 数据库备份文件（含真实数据，不要提交到仓库）
+db/_backup/

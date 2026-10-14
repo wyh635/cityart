@@ -1,5 +1,7 @@
 package com.cityart.controller.user;
 
+import com.cityart.annotation.OptionalLogin;
+import com.cityart.context.BaseContext;
 import com.cityart.dto.GalleryExhibitionPageQueryDTO;
 import com.cityart.dto.GalleryPageQueryDTO;
 import com.cityart.result.PageResult;
@@ -46,12 +48,15 @@ public class GalleryController {
 
     /**
      * 美术馆详情（顶部信息 + 展馆简介 + 两个分组的展览数量）
+     * <p>
+     * 可选登录：游客可看，带 token 时 isFavorited 返回当前用户的真实收藏状态
      * 查不到时返回 {"code":0,"msg":"美术馆不存在"}
      */
     @GetMapping("/{id}")
+    @OptionalLogin
     @ApiOperation("美术馆详情")
     public Result<GalleryDetailVO> detail(@PathVariable Long id) {
-        log.info("查询美术馆详情，id：{}", id);
+        log.info("查询美术馆详情，id：{}，userId：{}", id, BaseContext.getCurrentId());
         return Result.success(galleryService.getDetailById(id));
     }
 

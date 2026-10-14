@@ -76,4 +76,53 @@
         limit #{dto.offset}, #{dto.limit}
     </select>
 
+    <!-- ===================================================================
+         后台「展馆管理」列表
+         ⚠️ 与 C 端的关键差异：这里**不筛 status = 0**，
+            闭馆维护的馆在后台也要能看到、能编辑
+         =================================================================== -->
+    <sql id="adminGalleryWhere">
+        <where>
+            <if test="dto.city != null and dto.city != ''">
+                and city = #{dto.city}
+            </if>
+            <if test="dto.type != null">
+                and type = #{dto.type}
+            </if>
+            <if test="dto.status != null">
+                and status = #{dto.status}
+            </if>
+            <if test="dto.keyword != null and dto.keyword != ''">
+                and (name like concat('%', #{dto.keyword}, '%')
+                     or gallery_code like concat('%', #{dto.keyword}, '%'))
+            </if>
+        </where>
+    </sql>
+
+    <select id="countAdminGalleryPage" resultType="long">
+        select count(*)
+        from gallery
+        <include refid="adminGalleryWhere"/>
+    </select>
+
+    <select id="listAdminGalleryPage" resultType="com.cityart.vo.AdminGalleryVO">
+        select id,
+               gallery_code,
+               name,
+               city,
+               address,
+               open_time,
+               exhibition_count,
+               type,
+               status,
+               cover_image,
+               is_hot,
+               create_time
+        from gallery
+        <include refid="adminGalleryWhere"/>
+        <!-- 末尾 id desc 兜底：create_time 可能同秒重复，否则翻页会重复/漏数据 -->
+        order by create_time desc, id desc
+        limit #{dto.offset}, #{dto.limit}
+    </select>
+
 </mapper>

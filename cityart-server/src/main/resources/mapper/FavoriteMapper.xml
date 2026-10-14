@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  收藏 Mapper（只放带 JOIN 的列表查询）
+  收藏表本身只存 target_type + target_id，卡片要显示的内容靠 JOIN 取
+-->
+<mapper namespace="com.cityart.mapper.FavoriteMapper">
+
+    <!-- 收藏的展览（target_type = 1）：JOIN exhibition 拿标题/海报/展期/票价，JOIN gallery 拿馆名 -->
+    <select id="listFavoriteExhibitions" resultType="com.cityart.vo.FavoriteExhibitionVO">
+        select f.target_type,
+               f.target_id,
+               e.title,
+               e.poster_image,
+               e.start_date,
+               e.end_date,
+               e.price,
+               f.create_time as favorite_time,
+               g.name        as gallery_name
+        from favorite f
+        join exhibition e on e.id = f.target_id
+        join gallery g on g.id = e.gallery_id
+        where f.user_id = #{userId} and f.target_type = 1
+        order by f.create_time desc, f.id desc
+        limit #{offset}, #{pageSize}
+    </select>
+
+    <!-- 收藏的美术馆（target_type = 2） -->
+    <select id="listFavoriteGalleries" resultType="com.cityart.vo.FavoriteGalleryVO">
+        select f.target_type,
+               f.target_id,
+               g.name,
+               g.cover_image,
+               g.address,
+               g.exhibition_count,
+               f.create_time as favorite_time
+        from favorite f
+        join gallery g on g.id = f.target_id
+        where f.user_id = #{userId} and f.target_type = 2
+        order by f.create_time desc, f.id desc
+        limit #{offset}, #{pageSize}
+    </select>
+
+</mapper>

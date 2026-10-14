@@ -1,12 +1,15 @@
 package com.cityart.service.impl;
 
+import com.cityart.constant.FavoriteTargetTypeConstant;
 import com.cityart.constant.MessageConstant;
+import com.cityart.context.BaseContext;
 import com.cityart.dto.GalleryExhibitionPageQueryDTO;
 import com.cityart.dto.GalleryPageQueryDTO;
 import com.cityart.enumeration.ExhibitionTypeEnum;
 import com.cityart.enumeration.GalleryTypeEnum;
 import com.cityart.exception.BaseException;
 import com.cityart.mapper.ExhibitionMapper;
+import com.cityart.mapper.FavoriteMapper;
 import com.cityart.mapper.GalleryMapper;
 import com.cityart.result.PageResult;
 import com.cityart.service.GalleryService;
@@ -32,6 +35,9 @@ public class GalleryServiceImpl implements GalleryService {
 
     @Autowired
     private ExhibitionMapper exhibitionMapper;
+
+    @Autowired
+    private FavoriteMapper favoriteMapper;
 
     @Override
     public PageResult<GalleryPageVO> pageQuery(GalleryPageQueryDTO dto) {
@@ -67,8 +73,12 @@ public class GalleryServiceImpl implements GalleryService {
         // 2. 类型中文名
         vo.setTypeName(GalleryTypeEnum.labelOf(vo.getType()));
 
-        // 3. 收藏功能未开发，占位恒为 false
-        vo.setIsFavorited(false);
+        // 3. 收藏状态：详情接口是「可选登录」——
+        //    带 token 时 BaseContext 里有 userId，查真实收藏状态；游客为 false
+        Long userId = BaseContext.getCurrentId();
+        boolean favorited = userId != null
+                && favoriteMapper.countByUserAndTarget(userId, FavoriteTargetTypeConstant.GALLERY, id) > 0;
+        vo.setIsFavorited(favorited);
 
         // 4. 两个分组的展览数量（前端据此渲染分组标题、决定要不要调展览列表接口）
         GalleryExhibitionCountVO count = exhibitionMapper.getGalleryExhibitionCount(id);

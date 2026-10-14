@@ -29,6 +29,27 @@ public class Result< T > implements Serializable {
 
     }
 
+    /**
+     * 成功，但提示文案不是「操作成功」（例如「下单成功」「已取消」），且不返回数据
+     */
+    public static <T> Result<T> successMsg(String msg){
+        Result<T> result = new Result<>();
+        result.code=1;
+        result.msg=msg;
+        return result;
+    }
+
+    /**
+     * 成功，自定义提示文案 + 返回数据
+     */
+    public static <T> Result<T> success(String msg, T object){
+        Result<T> result = new Result<>();
+        result.code=1;
+        result.msg=msg;
+        result.data=object;
+        return result;
+    }
+
     public static <T> Result<T> error(String msg){
         Result result = new Result<>();
         result.code=0;
