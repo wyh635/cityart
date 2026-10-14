@@ -9,6 +9,8 @@ public class MessageConstant {
     public static final String SYSTEM_ERROR = "系统异常";
     public static final String PARAM_ERROR = "参数错误";
     public static final String RECOMMEND_SERVICE_ERROR = "推荐服务暂时不可用";
+    public static final String EXHIBITION_NOT_FOUND = "展览不存在";
+    public static final String GALLERY_NOT_FOUND = "美术馆不存在";
     public static final String ALREADY_EXISTS = "已存在";
     public static final String PASSWORD_ERROR = "密码错误";
     public static final String ACCOUNT_NOT_FOUND = "账号不存在";

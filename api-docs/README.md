@@ -9,6 +9,7 @@
 | 01 | [01登录接口文档.md](01登录接口文档.md) | 登录 / 注册 / 忘记密码 | 10 | 多数 🔓 |
 | 02 | [02首页模块接口文档.md](02首页模块接口文档.md) | 首页 | 4 | 全部 🔓 |
 | 03 | [03全部展览与美术馆列表接口文档.md](03全部展览与美术馆列表接口文档.md) | 全部展览、美术馆 | 5 | 全部 🔓 |
+| 04 | [04详情页接口文档.md](04详情页接口文档.md) | 展览详情、美术馆详情 | 4 | 全部 🔓 |
 
 ## 统一规范速查
 
@@ -88,6 +89,12 @@
 /api/app/dict/exhibition-types
 /api/app/dict/gallery-types
 /api/app/dict/cities
+
+# 详情页（4 个，注意用通配符 * 而不是具体数字）
+/api/app/exhibitions/*
+/api/app/exhibitions/*/works
+/api/app/galleries/*
+/api/app/galleries/*/exhibitions
 ```
 
 > 新增免登录接口时，**必须同步更新这份清单和 `WebMvcConfiguration`**。
@@ -128,14 +135,21 @@
 | 4 | `/api/app/exhibitions/page` | GET | 🔓 | `exhibition` JOIN `gallery` |
 | 5 | `/api/app/galleries/page` | GET | 🔓 | `gallery` |
 
+### 04 详情页
+
+| 编号 | Path | Method | 认证 | 数据来源 |
+|---|---|---|---|---|
+| 1 | `/api/app/exhibitions/{id}` | GET | 🔓 | `exhibition` JOIN `gallery` |
+| 2 | `/api/app/exhibitions/{id}/works` | GET | 🔓 | `exhibition_work` |
+| 3 | `/api/app/galleries/{id}` | GET | 🔓 | `gallery` + `exhibition` |
+| 4 | `/api/app/galleries/{id}/exhibitions` | GET | 🔓 | `exhibition` |
+
 ## 待补充的模块
 
 | 模块 | 状态 |
 |---|---|
-| 展览详情页 | 待写 |
-| 美术馆详情页 | 待写 |
-| 票务 / 下单 / 票夹 | 待写（对应表已 drop，需重新设计） |
-| 个人中心 / 收藏 / 看展记录 | 待写（对应表已 drop，需重新设计） |
+| 票务 / 下单 / 票夹 | 待写（对应表已 drop，需重新设计；详情页「购票」按钮目前只占位） |
+| 个人中心 / 收藏 / 看展记录 | 待写（对应表已 drop，需重新设计；详情页「收藏」按钮目前只占位） |
 
 ## 相关目录
 

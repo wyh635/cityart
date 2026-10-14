@@ -56,7 +56,13 @@ public class WebMvcConfiguration extends WebMvcConfigurationSupport {
                         "/api/app/galleries/page",
                         "/api/app/dict/exhibition-types",
                         "/api/app/dict/gallery-types",
-                        "/api/app/dict/cities"
+                        "/api/app/dict/cities",
+                        // 「展览详情 / 美术馆详情」模块用**路径参数**，白名单必须写成 /*
+                        // （写具体数字会失效，id 是变的）
+                        "/api/app/exhibitions/*",
+                        "/api/app/exhibitions/*/works",
+                        "/api/app/galleries/*",
+                        "/api/app/galleries/*/exhibitions"
                 );
     }
 

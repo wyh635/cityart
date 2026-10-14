@@ -1,6 +1,7 @@
 package com.cityart.mapper;
 
 import com.cityart.dto.GalleryPageQueryDTO;
+import com.cityart.vo.GalleryDetailVO;
 import com.cityart.vo.GalleryPageVO;
 import com.cityart.vo.GalleryVO;
 import org.apache.ibatis.annotations.Mapper;
@@ -42,4 +43,15 @@ public interface GalleryMapper {
      * 「美术馆」列表：当前页数据
      */
     List<GalleryPageVO> listGalleryPage(@Param("dto") GalleryPageQueryDTO dto);
+
+    /**
+     * 美术馆详情：单条
+     * 带 status = 0：闭馆维护的馆不对外展示
+     *
+     * @return 查不到返回 null，由 Service 抛「美术馆不存在」
+     */
+    @Select("select id, name, cover_image, address, city, open_time, intro, " +
+            "type, exhibition_count, is_hot " +
+            "from gallery where id = #{id} and status = 0")
+    GalleryDetailVO getGalleryById(@Param("id") Long id);
 }

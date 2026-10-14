@@ -108,4 +108,83 @@
         limit #{dto.offset}, #{dto.limit}
     </select>
 
+    <!-- ===================================================================
+         展览详情：JOIN gallery 取美术馆名称与地址
+         images 在库里是逗号分隔字符串，用 images_text 别名取出来，
+         由 Service 拆成数组返回（详情页「展览实景」区块）
+         =================================================================== -->
+    <select id="getExhibitionDetailById" resultType="com.cityart.vo.ExhibitionDetailVO">
+        select e.id,
+               e.title,
+               e.poster_image,
+               e.start_date,
+               e.end_date,
+               e.open_time,
+               e.description,
+               e.images as images_text,
+               e.type,
+               e.price,
+               e.total_stock,
+               e.sold_count,
+               g.id      as gallery_id,
+               g.name    as gallery_name,
+               g.address as gallery_address
+        from exhibition e
+        join gallery g on g.id = e.gallery_id
+        where e.id = #{id}
+    </select>
+
+    <!-- ===================================================================
+         某美术馆下「正在展出 / 往期展出」的数量（详情页分组标题右侧的数字）
+         该馆没有任何展览时 SUM 会返回 NULL，用 ifnull 兜成 0
+         =================================================================== -->
+    <select id="getGalleryExhibitionCount" resultType="com.cityart.vo.GalleryExhibitionCountVO">
+        select ifnull(sum(start_date &lt;= curdate() and end_date &gt;= curdate()), 0) as current_count,
+               ifnull(sum(end_date &lt; curdate()), 0)                                 as past_count
+        from exhibition
+        where gallery_id = #{galleryId}
+    </select>
+
+    <!-- 美术馆详情页展览列表的查询条件（count / list 共用） -->
+    <sql id="galleryExhibitionWhere">
+        <where>
+            gallery_id = #{galleryId}
+            <!-- 状态三选一，用 choose 保证互斥 -->
+            <choose>
+                <when test="dto.status == 'past'">
+                    and end_date &lt; curdate()
+                </when>
+                <when test="dto.status == 'future'">
+                    and start_date &gt; curdate()
+                </when>
+                <otherwise>
+                    and start_date &lt;= curdate()
+                    and end_date &gt;= curdate()
+                </otherwise>
+            </choose>
+        </where>
+    </sql>
+
+    <!-- 美术馆详情页展览列表：总条数 -->
+    <select id="countGalleryExhibitions" resultType="long">
+        select count(*)
+        from exhibition
+        <include refid="galleryExhibitionWhere"/>
+    </select>
+
+    <!-- 美术馆详情页展览列表：当前页数据（整页同一个馆，所以不返回 galleryName） -->
+    <select id="listGalleryExhibitions" resultType="com.cityart.vo.GalleryExhibitionVO">
+        select id,
+               title,
+               poster_image,
+               start_date,
+               end_date,
+               price,
+               type
+        from exhibition
+        <include refid="galleryExhibitionWhere"/>
+        order by start_date desc, id asc
+        limit #{dto.offset}, #{dto.limit}
+    </select>
+
 </mapper>
