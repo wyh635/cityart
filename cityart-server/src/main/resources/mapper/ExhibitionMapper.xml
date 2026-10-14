@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  展览 Mapper
+  namespace 必须是 Mapper 接口的全限定名
+  注意：XML 里的 < 和 > 要写成 &lt; &gt;，否则会被当成标签解析报错
+-->
+<mapper namespace="com.cityart.mapper.ExhibitionMapper">
+
+    <!-- ===================================================================
+         首页「当前热门展览」：is_hot = 1 且今天在展期内，缺一不可
+         galleryName 用 JOIN 一次查出，避免在循环里逐条查美术馆（N+1 问题）
+         status（正在/即将/往期）不在这条 SQL 里算，由 Service 按今天实时计算
+         =================================================================== -->
+    <select id="listHotExhibitions" resultType="com.cityart.vo.ExhibitionVO">
+        select e.id,
+               e.title,
+               e.poster_image,
+               e.start_date,
+               e.end_date,
+               e.price,
+               g.id   as gallery_id,
+               g.name as gallery_name
+        from exhibition e
+        join gallery g on g.id = e.gallery_id
+        <where>
+            e.is_hot = 1
+            and e.start_date &lt;= curdate()
+            and e.end_date &gt;= curdate()
+            <if test="city != null and city != ''">
+                and g.city = #{city}
+            </if>
+        </where>
+        order by e.sort_order desc, e.id asc
+        limit #{limit}
+    </select>
+
+    <!-- ===================================================================
+         「全部展览」列表的查询条件
+         抽成 <sql> 片段，count 和 list 两条语句都 <include> 它，
+         保证「总条数」和「当页数据」的筛选条件永远一致（否则分页页码会错）
+         =================================================================== -->
+    <sql id="exhibitionPageWhere">
+        <where>
+            <!-- 展出状态三选一，必须用 choose 保证互斥；写三个独立 if 会条件叠加查错 -->
+            <choose>
+                <when test="dto.status == 'future'">
+                    and e.start_date &gt; curdate()
+                </when>
+                <when test="dto.status == 'past'">
+                    and e.end_date &lt; curdate()
+                </when>
+                <otherwise>
+                    and e.start_date &lt;= curdate()
+                    and e.end_date &gt;= curdate()
+                </otherwise>
+            </choose>
+
+            <!-- 可选筛选：不传就是「全部」，不要传 0 表示全部 -->
+            <if test="dto.type != null">
+                and e.type = #{dto.type}
+            </if>
+            <if test="dto.city != null and dto.city != ''">
+                and g.city = #{dto.city}
+            </if>
+            <if test="dto.keyword != null and dto.keyword != ''">
+                and e.title like concat('%', #{dto.keyword}, '%')
+            </if>
+        </where>
+    </sql>
+
+    <!-- 「全部展览」总条数 -->
+    <select id="countExhibitionPage" resultType="long">
+        select count(*)
+        from exhibition e
+        join gallery g on g.id = e.gallery_id
+        <include refid="exhibitionPageWhere"/>
+    </select>
+
+    <!-- 「全部展览」当前页数据 -->
+    <select id="listExhibitionPage" resultType="com.cityart.vo.ExhibitionPageVO">
+        select e.id,
+               e.title,
+               e.poster_image,
+               e.start_date,
+               e.end_date,
+               e.price,
+               e.type,
+               e.is_hot,
+               g.id   as gallery_id,
+               g.name as gallery_name
+        from exhibition e
+        join gallery g on g.id = e.gallery_id
+        <include refid="exhibitionPageWhere"/>
+        <choose>
+            <when test="dto.sort == 'priceAsc'">
+                order by e.price asc, e.id asc
+            </when>
+            <when test="dto.sort == 'priceDesc'">
+                order by e.price desc, e.id asc
+            </when>
+            <otherwise>
+                order by e.is_hot desc, e.sort_order desc, e.start_date asc, e.id asc
+            </otherwise>
+        </choose>
+        <!-- 末尾的 e.id asc 不能省，否则排序字段有重复值时翻页会重复/漏数据 -->
+        limit #{dto.offset}, #{dto.limit}
+    </select>
+
+</mapper>

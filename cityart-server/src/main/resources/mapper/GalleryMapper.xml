@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  美术馆 Mapper
+  namespace 必须是 Mapper 接口的全限定名，否则启动报 "Invalid bound statement (not found)"
+  方法名 ↔ <select> 的 id 一一对应
+  结果字段（cover_image → coverImage）靠 application.yml 里的 map-underscore-to-camel-case: true 自动映射
+-->
+<mapper namespace="com.cityart.mapper.GalleryMapper">
+
+    <!--
+      首页「热门美术馆」
+      条件：is_hot = 1（运营标记热门）且 status = 0（正常营业），city 可选
+      exhibition_count 是冗余字段，首页直接读，不做实时 COUNT
+    -->
+    <select id="listHotGalleries" resultType="com.cityart.vo.GalleryVO">
+        select id,
+               name,
+               cover_image,
+               address,
+               city,
+               open_time,
+               exhibition_count
+        from gallery
+        <where>
+            is_hot = 1
+            and status = 0
+            <if test="city != null and city != ''">
+                and city = #{city}
+            </if>
+        </where>
+        order by exhibition_count desc, id asc
+        limit #{limit}
+    </select>
+
+    <!-- ===================================================================
+         「美术馆」列表的查询条件（count 和 list 共用，保证分页页码正确）
+         status = 0 是必须的：闭馆维护的馆不展示
+         =================================================================== -->
+    <sql id="galleryPageWhere">
+        <where>
+            status = 0
+            <if test="dto.type != null">
+                and type = #{dto.type}
+            </if>
+            <if test="dto.city != null and dto.city != ''">
+                and city = #{dto.city}
+            </if>
+            <if test="dto.keyword != null and dto.keyword != ''">
+                and name like concat('%', #{dto.keyword}, '%')
+            </if>
+        </where>
+    </sql>
+
+    <!-- 「美术馆」总条数 -->
+    <select id="countGalleryPage" resultType="long">
+        select count(*)
+        from gallery
+        <include refid="galleryPageWhere"/>
+    </select>
+
+    <!-- 「美术馆」当前页数据 -->
+    <select id="listGalleryPage" resultType="com.cityart.vo.GalleryPageVO">
+        select id,
+               name,
+               cover_image,
+               address,
+               city,
+               exhibition_count,
+               type
+        from gallery
+        <include refid="galleryPageWhere"/>
+        <!-- exhibition_count 是冗余字段，直接读，不要改成实时 COUNT -->
+        order by exhibition_count desc, id asc
+        limit #{dto.offset}, #{dto.limit}
+    </select>
+
+</mapper>
