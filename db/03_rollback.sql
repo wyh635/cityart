@@ -3,9 +3,16 @@
 -- =============================================================================
 -- 用途：执行 02_alter_existing.sql 之后如果发现设计要改，用本脚本还原结构。
 --
+-- ⚠️ 适用范围：**只回滚 02_alter_existing.sql 的变更**。
+--    05_order_favorite_tables.sql（票务 4 张表）与 07_admin_tables.sql（后台字段）
+--    没有对应的回滚脚本 —— 它们都是「只增不减」的变更，需要回滚时请手工处理，
+--    或直接重新执行 01_create_tables.sql 重建库（注意会清空数据）。
+--
 -- ⚠️ 本脚本【不可重复执行】，且会删除 exhibition_work 表内的全部数据。
 -- ⚠️ 回滚会丢失以下列的数据：banner.update_time、gallery.open_time/is_hot、
---    exhibition.images/open_time。执行前请确认。
+--    exhibition.images/open_time。执行前请先备份。
+--
+-- 备份建议：mysqldump -uroot -p city_art > city_art_backup_$(date +%Y%m%d).sql
 -- =============================================================================
 
 USE `city_art`;
