@@ -5,6 +5,7 @@ import com.cityart.dto.GalleryPageQueryDTO;
 import com.cityart.vo.AdminGalleryDetailVO;
 import com.cityart.vo.AdminGalleryVO;
 import com.cityart.vo.GalleryDetailVO;
+import com.cityart.vo.GalleryOptionVO;
 import com.cityart.vo.GalleryPageVO;
 import com.cityart.vo.GalleryVO;
 import org.apache.ibatis.annotations.Delete;
@@ -166,4 +167,20 @@ public interface GalleryMapper {
     @Select("select max(cast(substring(gallery_code, 6) as unsigned)) " +
             "from gallery where city = #{city} and gallery_code is not null")
     Integer getMaxGalleryCodeSeqOfCity(@Param("city") String city);
+
+    /**
+     * 「所属展馆」下拉（新增展览页）
+     * <p>
+     * ⚠️ 不筛 status：闭馆维护的馆也可能已经挂了展览，后台编辑时要能选到它
+     *
+     * @param city 为 null 表示不按城市筛选
+     */
+    @Select("<script>" +
+            "select id, name, city from gallery " +
+            "<where>" +
+            "  <if test='city != null and city != \"\"'> city = #{city} </if>" +
+            "</where>" +
+            " order by city asc, id asc" +
+            "</script>")
+    List<GalleryOptionVO> listGalleryOptions(@Param("city") String city);
 }

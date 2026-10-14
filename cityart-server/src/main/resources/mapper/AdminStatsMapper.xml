@@ -1,0 +1,227 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  后台统计 Mapper（数据看板 + 票务数据报表）
+  口径：售出 / 营收只统计 status IN (2,5)（已支付、已完成）
+       1-待支付、3-已取消、4-已退款都不计入
+-->
+<mapper namespace="com.cityart.mapper.AdminStatsMapper">
+
+    <!-- ===================================================================
+         数据看板
+         =================================================================== -->
+
+    <!-- 今日到馆人数：按核销时间统计 -->
+    <select id="countVisitByRange" resultType="int">
+        select count(*)
+        from exhibition_order o
+        where o.use_time is not null
+          and o.use_time &gt;= #{start} and o.use_time &lt; #{end}
+    </select>
+
+    <!-- 指定范围内的售票总量与营业额（按支付时间） -->
+    <select id="sumSoldAndRevenue" resultType="com.cityart.vo.DashboardOverviewVO">
+        select ifnull(sum(o.quantity), 0)     as week_ticket_count,
+               ifnull(sum(o.total_amount), 0) as week_revenue
+        from exhibition_order o
+        join exhibition e on e.id = o.exhibition_id
+        join gallery g on g.id = o.gallery_id
+        <where>
+            o.status in (2, 5)
+            and o.pay_time &gt;= #{start} and o.pay_time &lt; #{end}
+            <if test="city != null and city != ''">
+                and g.city = #{city}
+            </if>
+            <if test="type != null">
+                and e.type = #{type}
+            </if>
+        </where>
+    </select>
+
+    <!-- 排行筛选条件（count / list / 分母 三条共用，保证分母与分子口径一致） -->
+    <sql id="rankWhere">
+        <where>
+            o.status in (2, 5)
+            and o.pay_time &gt;= #{dto.startTime} and o.pay_time &lt; #{dto.endTime}
+            <if test="dto.city != null and dto.city != ''">
+                and g.city = #{dto.city}
+            </if>
+            <if test="dto.type != null">
+                and e.type = #{dto.type}
+            </if>
+        </where>
+    </sql>
+
+    <!-- 用于 sumAllTicketsForRank 的版本（参数是平铺的，不是 dto） -->
+    <sql id="rankWhereFlat">
+        <where>
+            o.status in (2, 5)
+            and o.pay_time &gt;= #{start} and o.pay_time &lt; #{end}
+            <if test="city != null and city != ''">
+                and g.city = #{city}
+            </if>
+            <if test="type != null">
+                and e.type = #{type}
+            </if>
+        </where>
+    </sql>
+
+    <select id="countExhibitionRank" resultType="long">
+        select count(*)
+        from (
+            select e.id
+            from exhibition_order o
+            join exhibition e on e.id = o.exhibition_id
+            join gallery g on g.id = o.gallery_id
+            <include refid="rankWhere"/>
+            group by e.id
+        ) t
+    </select>
+
+    <!--
+      展览排行：按展览聚合售票数
+      ⚠️ 不用 LEFT JOIN exhibition：从订单表出发，没卖过票的展览本来就不该出现在排行里
+    -->
+    <select id="listExhibitionRank" resultType="com.cityart.vo.ExhibitionRankVO">
+        select e.id                             as exhibition_id,
+               e.title                          as exhibition_name,
+               ifnull(sum(o.quantity), 0)       as ticket_count
+        from exhibition_order o
+        join exhibition e on e.id = o.exhibition_id
+        join gallery g on g.id = o.gallery_id
+        <include refid="rankWhere"/>
+        group by e.id, e.title
+        <!-- 票数相同时按 id 升序，保证分页稳定（否则翻页可能重复/漏数据） -->
+        order by ticket_count desc, e.id asc
+        limit #{dto.offset}, #{dto.limit}
+    </select>
+
+    <!-- 客流占比的分母：全部售票总数 -->
+    <select id="sumAllTicketsForRank" resultType="int">
+        select ifnull(sum(o.quantity), 0)
+        from exhibition_order o
+        join exhibition e on e.id = o.exhibition_id
+        join gallery g on g.id = o.gallery_id
+        <include refid="rankWhereFlat"/>
+    </select>
+
+    <!-- ===================================================================
+         票务数据报表
+         =================================================================== -->
+
+    <!-- 报表筛选条件（按支付日统计「出售」时用） -->
+    <sql id="ticketStatsWhere">
+        <where>
+            o.status in (2, 5)
+            and o.pay_time is not null
+            and o.pay_time &gt;= #{dto.startTime} and o.pay_time &lt; #{dto.endTime}
+            <if test="dto.city != null and dto.city != ''">
+                and g.city = #{dto.city}
+            </if>
+            <if test="dto.type != null">
+                and e.type = #{dto.type}
+            </if>
+            <if test="dto.keyword != null and dto.keyword != ''">
+                and e.title like concat('%', #{dto.keyword}, '%')
+            </if>
+        </where>
+    </sql>
+
+    <select id="countTicketStats" resultType="long">
+        select count(*)
+        from (
+            select date(o.pay_time), e.id
+            from exhibition_order o
+            join exhibition e on e.id = o.exhibition_id
+            join gallery g on g.id = o.gallery_id
+            <include refid="ticketStatsWhere"/>
+            group by date(o.pay_time), e.id
+        ) t
+    </select>
+
+    <!--
+      票务数据：按「支付日 + 展览」分组
+      ⚠️ 这里只算「出售」与「营收」；
+         核销数按核销日单独查（listVerifiedByUseDate），由 Service 合并 —— 
+         因为核销日期和支付日期可能不是同一天
+    -->
+    <select id="listTicketStats" resultType="com.cityart.vo.TicketStatVO">
+        select date(o.pay_time)                as stat_date,
+               e.id                            as exhibition_id,
+               e.title                         as exhibition_title,
+               ifnull(sum(o.quantity), 0)      as sold_count,
+               ifnull(sum(o.total_amount), 0)  as daily_revenue
+        from exhibition_order o
+        join exhibition e on e.id = o.exhibition_id
+        join gallery g on g.id = o.gallery_id
+        <include refid="ticketStatsWhere"/>
+        group by date(o.pay_time), e.id, e.title
+        order by stat_date desc, sold_count desc, e.id asc
+        limit #{dto.offset}, #{dto.limit}
+    </select>
+
+    <!-- 按「核销日 + 展览」统计核销票数（只取有核销的组） -->
+    <select id="listVerifiedByUseDate" resultType="com.cityart.vo.TicketStatVO">
+        select date(o.use_time)           as stat_date,
+               e.id                       as exhibition_id,
+               ifnull(sum(o.quantity), 0) as verified_count
+        from exhibition_order o
+        join exhibition e on e.id = o.exhibition_id
+        join gallery g on g.id = o.gallery_id
+        <where>
+            o.use_time is not null
+            and o.use_time &gt;= #{dto.startTime} and o.use_time &lt; #{dto.endTime}
+            <if test="dto.city != null and dto.city != ''">
+                and g.city = #{dto.city}
+            </if>
+            <if test="dto.type != null">
+                and e.type = #{dto.type}
+            </if>
+            <if test="dto.keyword != null and dto.keyword != ''">
+                and e.title like concat('%', #{dto.keyword}, '%')
+            </if>
+        </where>
+        group by date(o.use_time), e.id
+    </select>
+
+    <!-- 底部三张卡片：总售票数 / 总核销数 / 今日营业额 -->
+    <select id="getTicketStatsSummary" resultType="com.cityart.vo.TicketStatsSummaryVO">
+        select
+            <!-- 总售票数：按筛选范围统计（status IN (2,5)，按支付时间） -->
+            (select ifnull(sum(o.quantity), 0)
+             from exhibition_order o
+             join exhibition e on e.id = o.exhibition_id
+             join gallery g on g.id = o.gallery_id
+             <include refid="ticketStatsWhere"/>
+            ) as total_sold_count,
+
+            <!-- 总核销数：同样按筛选范围，但按核销时间 -->
+            (select ifnull(sum(o.quantity), 0)
+             from exhibition_order o
+             join exhibition e on e.id = o.exhibition_id
+             join gallery g on g.id = o.gallery_id
+             <where>
+                 o.use_time is not null
+                 and o.use_time &gt;= #{dto.startTime} and o.use_time &lt; #{dto.endTime}
+                 <if test="dto.city != null and dto.city != ''">
+                     and g.city = #{dto.city}
+                 </if>
+                 <if test="dto.type != null">
+                     and e.type = #{dto.type}
+                 </if>
+                 <if test="dto.keyword != null and dto.keyword != ''">
+                     and e.title like concat('%', #{dto.keyword}, '%')
+                 </if>
+             </where>
+            ) as total_verified_count,
+
+            <!-- 今日营业额：固定今天，不受筛选时间范围影响 -->
+            (select ifnull(sum(o.total_amount), 0)
+             from exhibition_order o
+             where o.status in (2, 5)
+               and o.pay_time &gt;= #{todayStart} and o.pay_time &lt; #{todayEnd}
+            ) as today_revenue
+    </select>
+
+</mapper>

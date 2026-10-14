@@ -3,6 +3,7 @@ package com.cityart.config;
 import com.cityart.interceptor.JwtTokenAdminInterceptor;
 import com.cityart.interceptor.JwtTokenUserInterceptor;
 import com.cityart.json.JacksonObjectMapper;
+import com.cityart.properties.UploadProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -19,6 +20,7 @@ import springfox.documentation.service.ApiInfo;
 import springfox.documentation.spi.DocumentationType;
 import springfox.documentation.spring.web.plugins.Docket;
 
+import java.io.File;
 import java.util.List;
 
 /**
@@ -33,6 +35,9 @@ public class WebMvcConfiguration extends WebMvcConfigurationSupport {
 
     @Autowired
     private JwtTokenAdminInterceptor jwtTokenAdminInterceptor;
+
+    @Autowired
+    private UploadProperties uploadProperties;
 
     /**
      * 注册自定义拦截器
@@ -107,12 +112,29 @@ public class WebMvcConfiguration extends WebMvcConfigurationSupport {
 
     /**
      * 设置静态资源映射
+     * <p>
+     * ⚠️ /static/upload/** 这条是**上传文件的访问入口**：
+     * 图片落盘在 cityart.upload.base-path（默认 ./uploads），
+     * 通过 /static/upload/** 对外暴露，DB 里存的 URL 就是 /static/upload/xxx/yyy.jpg。
+     * <p>
+     * 注意：这里用的是**绝对路径**（file: 前缀 + 解析后的绝对路径），
+     * 因为 Tomcat 的工作目录不确定，相对路径会随启动方式变化导致图片 404。
      */
     @Override
     protected void addResourceHandlers(ResourceHandlerRegistry registry) {
         log.info("开始设置静态资源映射...");
         registry.addResourceHandler("/doc.html").addResourceLocations("classpath:/META-INF/resources/");
         registry.addResourceHandler("/webjars/**").addResourceLocations("classpath:/META-INF/resources/webjars/");
+
+        // 上传文件的物理目录 → URL 映射
+        // ⚠️ 必须与 UploadServiceImpl 解析出的目录一致：
+        //    两边都用 new File(basePath).getAbsoluteFile() 逐字对应，
+        //    否则会出现「上传成功但图片 404」
+        File uploadDir = new File(uploadProperties.getBasePath()).getAbsoluteFile();
+        String location = "file:" + uploadDir.getPath() + File.separator;
+        registry.addResourceHandler(uploadProperties.getUrlPrefix() + "/**")
+                .addResourceLocations(location);
+        log.info("上传文件静态映射：{}/** → {}", uploadProperties.getUrlPrefix(), location);
     }
 
     /**

@@ -12,13 +12,33 @@
 | `04_init_data.sql` | 首页 / 展览 / 美术馆 的测试数据 | 本地开发造数据 |
 | `05_order_favorite_tables.sql` | 票务与个人中心的增量变更（可重复执行） | **已有库**，补 4 张新表 |
 | `06_init_order_data.sql` | 票种 / 日历 / 订单 / 收藏 的测试数据（需先跑 `04`） | 验证购票流程与个人中心 |
+| `07_admin_tables.sql` | 后台管理模块的增量变更（可重复执行）：新建 `city` / `notification`，`exhibition` / `gallery` / `exhibition_order` / `admin` 补字段 | **已有库**，要跑后台接口前必须执行 |
+| `08_repair_denormalized.sql` | **冗余字段校准**：按订单表重算 6 个冗余字段（幂等） | 数据出现漂移时手工修一次（平时由定时任务兜底） |
 
-> ⚠️ `01` 与「`02` + `05`」**二选一**：
-> - 全新环境 → 只跑 `01`
-> - 已有库 → 跑 `02` 再跑 `05`（都已做幂等，重复执行不报错）
+> ⚠️ `01` 与「`02` + `05` + `07`」**二选一**：
+> - 全新环境 → 只跑 `01`（再按需跑 `07` 补后台字段）
+> - 已有库 → 依次跑 `02` → `05` → `07`（都已做幂等，重复执行不报错）
 >
 > 登录模块的 `user` / `admin` 建表语句见 [../01登录模块数据库建表方案.md](../01登录模块数据库建表方案.md)；
 > `user` 表的 `city` / `gender` 两个扩展列由 `02` 与 `05` 幂等添加。
+
+## 冗余字段（由代码维护，不要手工改）
+
+以下字段是为**性能**而重复存储的，写入路径必须同步维护。若怀疑数据不对，
+跑 `08_repair_denormalized.sql` 或调 `POST /api/admin/data-repair` 校准（幂等）。
+
+| 冗余字段 | 唯一可信来源 | 口径 |
+|---|---|---|
+| `ticket_type.sold_count` | `exhibition_order` | `SUM(quantity) WHERE status IN (2,5)` |
+| `exhibition_calendar.sold_count` | `exhibition_order` | 按「展览 + 观展日期」，`status IN (2,5)` |
+| `exhibition.sold_count` | `exhibition_order` | 按展览，`status IN (2,5)` |
+| `exhibition.total_stock` | `ticket_type` | `SUM(total_stock)`（在售票种） |
+| `exhibition.price` | `ticket_type` | `MIN(price)`（在售票种，展示用） |
+| `gallery.exhibition_count` | `exhibition` | 该馆「今天在展期内」的展览数 |
+| `user.visit_count` | `exhibition_order` | `use_time IS NOT NULL` 的订单数 |
+
+> 📌 口径为什么是 `status IN (2,5)`：只有**已支付(2)** 与**已完成(5)** 才真正占用库存；
+> 待支付(1)、已取消(3)、已退款(4) 都不计入已售。
 
 ## 表清单（8 张业务表 + user）
 

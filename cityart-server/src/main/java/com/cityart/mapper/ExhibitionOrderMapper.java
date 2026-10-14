@@ -1,10 +1,12 @@
 package com.cityart.mapper;
 
+import com.cityart.dto.AdminOrderPageQueryDTO;
 import com.cityart.dto.OrderPageQueryDTO;
 import com.cityart.dto.RecordPageQueryDTO;
 import com.cityart.dto.TicketPageQueryDTO;
 import com.cityart.dto.VerifyRecordPageQueryDTO;
 import com.cityart.entity.ExhibitionOrder;
+import com.cityart.vo.AdminOrderVO;
 import com.cityart.vo.OrderDetailVO;
 import com.cityart.vo.OrderPageItemVO;
 import com.cityart.vo.OrderVerifyVO;
@@ -140,6 +142,32 @@ public interface ExhibitionOrderMapper {
      * 核销记录：当前页数据（JOIN 见 XML）
      */
     List<VerifyRecordVO> listVerifyRecords(@Param("dto") VerifyRecordPageQueryDTO dto);
+
+    // ==================================================================
+    // B 端订单管理
+    // ==================================================================
+
+    /**
+     * 后台订单列表：总条数（条件与列表共用同一段 XML SQL）
+     */
+    long countAdminOrderPage(@Param("dto") AdminOrderPageQueryDTO dto);
+
+    /**
+     * 后台订单列表：当前页数据
+     */
+    List<AdminOrderVO> listAdminOrderPage(@Param("dto") AdminOrderPageQueryDTO dto);
+
+    /**
+     * 后台退款：**不带 user_id 条件**（后台没有当前用户）
+     * <p>
+     * 条件 status = 2 保证只有「已支付」能退；
+     * 影响行数 0 说明状态已变（已核销 / 已退过），调用方要抛异常
+     */
+    @Update("update exhibition_order " +
+            "set status = 4, refund_status = 2, refund_amount = total_amount, " +
+            "    qr_code = null, expire_time = now() " +
+            "where order_no = #{orderNo} and status = 2")
+    int refundByAdmin(@Param("orderNo") String orderNo);
 
     /**
      * 退款：只有已支付且未退款的订单能退；refund_amount 直接取订单总额

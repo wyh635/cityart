@@ -52,7 +52,7 @@ public class GalleryDetailVO implements Serializable {
     @ApiModelProperty("是否热门：0-否 1-是")
     private Integer isHot;
 
-    @ApiModelProperty("当前用户是否已收藏（收藏功能未开发，恒为 false，占位用）")
+    @ApiModelProperty("当前用户是否已收藏；未登录（游客）恒为 false")
     private Boolean isFavorited;
 
     @ApiModelProperty("「正在展出」区块的展览总数")

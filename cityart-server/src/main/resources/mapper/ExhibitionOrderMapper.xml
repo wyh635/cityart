@@ -191,4 +191,73 @@
         limit #{dto.offset}, #{dto.limit}
     </select>
 
+    <!-- ===================================================================
+         B 端「订单管理」列表
+         =================================================================== -->
+    <sql id="adminOrderWhere">
+        <where>
+            <if test="dto.orderNo != null and dto.orderNo != ''">
+                and o.order_no = #{dto.orderNo}
+            </if>
+            <if test="dto.phone != null and dto.phone != ''">
+                and o.contact_phone like concat('%', #{dto.phone}, '%')
+            </if>
+            <if test="dto.contactName != null and dto.contactName != ''">
+                and o.contact_name like concat('%', #{dto.contactName}, '%')
+            </if>
+            <if test="dto.exhibitionId != null">
+                and o.exhibition_id = #{dto.exhibitionId}
+            </if>
+            <if test="dto.city != null and dto.city != ''">
+                and g.city = #{dto.city}
+            </if>
+            <if test="dto.status != null">
+                and o.status = #{dto.status}
+            </if>
+            <if test="dto.startDate != null">
+                and o.create_time &gt;= #{dto.startDate}
+            </if>
+            <if test="dto.endDate != null">
+                <!-- 加一天再比较：让 endDate 当天 23:59 的订单也算在内 -->
+                and o.create_time &lt; date_add(#{dto.endDate}, interval 1 day)
+            </if>
+        </where>
+    </sql>
+
+    <select id="countAdminOrderPage" resultType="long">
+        select count(*)
+        from exhibition_order o
+        join exhibition e on e.id = o.exhibition_id
+        join gallery g on g.id = o.gallery_id
+        <include refid="adminOrderWhere"/>
+    </select>
+
+    <select id="listAdminOrderPage" resultType="com.cityart.vo.AdminOrderVO">
+        select o.order_no,
+               o.status,
+               o.user_id,
+               o.contact_name,
+               o.contact_phone,
+               o.quantity,
+               o.total_amount,
+               o.visit_date,
+               o.create_time,
+               o.pay_time,
+               o.use_time,
+               o.verify_type,
+               o.refund_status,
+               o.refund_amount,
+               o.ticket_name,
+               e.id    as exhibition_id,
+               e.title as exhibition_title,
+               g.name  as gallery_name
+        from exhibition_order o
+        join exhibition e on e.id = o.exhibition_id
+        join gallery g on g.id = o.gallery_id
+        <include refid="adminOrderWhere"/>
+        <!-- 末尾 id desc 兜底：create_time 可能同秒重复，否则翻页会重复/漏数据 -->
+        order by o.create_time desc, o.id desc
+        limit #{dto.offset}, #{dto.limit}
+    </select>
+
 </mapper>

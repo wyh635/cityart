@@ -14,6 +14,7 @@ import com.cityart.mapper.AdminMapper;
 import com.cityart.properties.JwtProperties;
 import com.cityart.service.AdminService;
 import com.cityart.utils.JwtUtil;
+import com.cityart.utils.PhoneUtil;
 import com.cityart.vo.AdminProfileVO;
 import com.cityart.vo.AdminVO;
 import lombok.extern.slf4j.Slf4j;
@@ -93,7 +94,7 @@ public class AdminServiceImpl implements AdminService {
         return AdminProfileVO.builder()
                 .id(admin.getId())
                 .name(admin.getName())
-                .phone(maskPhone(admin.getPhone()))   // 脱敏后返回，不下发完整手机号
+                .phone(PhoneUtil.mask(admin.getPhone()))   // 脱敏后返回，不下发完整手机号
                 .avatar(admin.getAvatar())
                 .city(admin.getCity())
                 .adminCode(admin.getAdminCode())
@@ -145,11 +146,5 @@ public class AdminServiceImpl implements AdminService {
                 claims);
     }
 
-    /** 手机号脱敏：13800138000 → 138****8000 */
-    private String maskPhone(String phone) {
-        if (phone == null || phone.length() != 11) {
-            return phone;
-        }
-        return phone.substring(0, 3) + "****" + phone.substring(7);
-    }
+    /** 手机号脱敏交给公共工具，避免每个 Service 各写一份 */
 }

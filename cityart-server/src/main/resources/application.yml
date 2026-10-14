@@ -16,6 +16,13 @@ spring:
     host: ${cityart.redis.host}
     port: ${cityart.redis.port}
     database: ${cityart.redis.database}
+  servlet:
+    multipart:
+      # 单文件上限 5MB（与 UploadServiceImpl 里的校验保持一致，
+      # 这里配了能让超限请求在进入 Controller 前就被拒绝，不会白读一遍文件）
+      max-file-size: 5MB
+      # 单次请求上限：留出余量，防止一次传多个文件时被整体拒绝
+      max-request-size: 20MB
 
 mybatis:
   #mapper配置文件
@@ -47,3 +54,9 @@ cityart:
     user-ttl: 7200000
     # 用户端前端传递过来的令牌名称
     user-token-name: authentication
+  upload:
+    # 上传文件的物理存储目录（相对项目根目录或绝对路径）
+    # 注意：不要放进 classpath / target，否则重新打包会把图片冲掉
+    base-path: ./uploads
+    # 对外访问的 URL 前缀，与 WebMvcConfiguration 里注册的资源映射一致
+    url-prefix: /static/upload

@@ -72,7 +72,7 @@ public class ExhibitionDetailVO implements Serializable {
     @ApiModelProperty("美术馆地址")
     private String galleryAddress;
 
-    @ApiModelProperty("美术馆电话（表里暂无该字段，恒为 null，占位用）")
+    @ApiModelProperty("美术馆电话（gallery 表暂无 phone 字段，恒为 null，保留字段位以便后续扩展）")
     private String galleryPhone;
 
     @ApiModelProperty("票价（元），0 表示免费")
@@ -87,7 +87,7 @@ public class ExhibitionDetailVO implements Serializable {
     @ApiModelProperty("剩余库存 = totalStock - soldCount（Service 计算，不落库）")
     private Integer remainingStock;
 
-    @ApiModelProperty("当前用户是否已收藏（收藏功能未开发，恒为 false，占位用）")
+    @ApiModelProperty("当前用户是否已收藏；未登录（游客）恒为 false")
     private Boolean isFavorited;
 
     @ApiModelProperty("作品集总数，>0 时前端才去调作品集接口")

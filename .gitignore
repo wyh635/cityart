@@ -7,3 +7,9 @@
 
 # 数据库备份文件（含真实数据，不要提交到仓库）
 db/_backup/
+
+# 上传的图片（用户内容，不要提交）
+# 注意：cityart.upload.base-path 是相对路径时，实际目录取决于启动时的工作目录
+# （IDEA / mvn spring-boot:run 跑 cityart-server 时会落在 cityart-server/uploads）
+# 无斜杠前缀的模式匹配任意层级，所以下面一条能同时覆盖根目录与子模块下的 uploads
+uploads/
